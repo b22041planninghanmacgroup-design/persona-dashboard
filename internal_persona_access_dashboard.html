@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>내부 구성원 페르소나별 데이터 접근성 분석</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f9f9f7;color:#1a1a18;padding:1.5rem;font-size:14px}
+.db{max-width:1280px;margin:0 auto}
+.top-bar{margin-bottom:1.25rem}
+.top-bar h1{font-size:20px;font-weight:500}
+.top-bar p{font-size:12px;color:#73726c;margin-top:3px}
+.notice{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:4px 10px;border-radius:20px;background:#f1efe8;border:0.5px solid #d3d1c7;color:#5f5e5a;margin-top:6px}
+
+.persona-grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:8px;margin-bottom:1.25rem}
+.pcard{border:0.5px solid #d3d1c7;border-radius:12px;padding:.7rem .6rem;cursor:pointer;transition:all .15s;background:#fff}
+.pcard:hover{background:#f1efe8;border-color:#b4b2a9}
+.pcard.active{border-width:1.5px;background:#f1efe8}
+.pcard-icon{font-size:15px;margin-bottom:4px;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.pcard-group{font-size:9px;color:#73726c;margin-bottom:2px}
+.pcard-name{font-size:12px;font-weight:500;line-height:1.3}
+.pcard-tag{display:inline-block;margin-top:4px;font-size:9px;padding:1px 6px;border-radius:8px;line-height:1.4}
+
+.main-grid{display:grid;grid-template-columns:290px minmax(0,1fr);gap:12px;margin-bottom:12px}
+.card{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:1rem 1.25rem}
+.card-title{font-size:13px;font-weight:500;margin-bottom:.75rem;color:#1a1a18}
+
+.pd-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pd-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.pd-name{font-size:14px;font-weight:500}
+.pd-role{font-size:11px;color:#73726c;margin-top:2px}
+.pd-desc{font-size:11px;color:#5f5e5a;line-height:1.6;padding:.55rem .7rem;border-radius:8px;background:#f1efe8;margin-bottom:8px}
+.pd-goals{margin-bottom:8px}
+.pd-goal{font-size:11px;color:#5f5e5a;display:flex;align-items:flex-start;gap:5px;line-height:1.5;padding:1px 0}
+.pd-goal::before{content:'›';color:#b4b2a9;flex-shrink:0}
+.pd-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px}
+.pd-stat{background:#f1efe8;border-radius:8px;padding:.45rem .5rem;text-align:center}
+.pd-stat .sv{font-size:17px;font-weight:500}
+.pd-stat .sl{font-size:10px;color:#73726c;margin-top:1px}
+.pain-title{font-size:10px;font-weight:500;color:#73726c;margin-bottom:3px}
+.pain-item{font-size:11px;color:#5f5e5a;padding:2px 0 2px 8px;border-left:2px solid #E24B4A;margin-bottom:3px;line-height:1.4}
+
+.scenario-list{display:flex;flex-direction:column;gap:6px}
+.srow{border:0.5px solid #d3d1c7;border-radius:8px;padding:.6rem .8rem;transition:background .1s}
+.srow:hover{background:#f1efe8}
+.srow-top{display:flex;align-items:center;gap:7px;margin-bottom:3px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;padding:1px 7px;border-radius:9px;font-size:10px;font-weight:500;white-space:nowrap}
+.b-s{background:#EAF3DE;color:#3B6D11}
+.b-m{background:#FAEEDA;color:#854F0B}
+.b-c{background:#FCEBEB;color:#A32D2D}
+.srow-title{font-size:12px;font-weight:500;flex:1;min-width:120px}
+.srow-meta{display:flex;gap:10px}
+.srow-stat{font-size:11px;color:#73726c;white-space:nowrap}
+.srow-stat strong{color:#1a1a18;font-weight:500}
+.srow-path{font-size:11px;color:#73726c;line-height:1.4;margin-top:2px}
+.srow-pain{font-size:10px;margin-top:4px;padding:2px 7px;border-radius:6px;display:inline-block}
+
+.bottom-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.chart-wrap{position:relative;width:100%}
+.legend-row{display:flex;gap:12px;margin-bottom:6px;font-size:11px;color:#73726c;flex-wrap:wrap}
+.leg-dot{display:flex;align-items:center;gap:4px}
+.leg-sq{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+@media(max-width:1000px){
+  .persona-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .main-grid{grid-template-columns:1fr}
+  .bottom-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="db">
+  <div class="top-bar">
+    <h1>내부 구성원 페르소나별 데이터 접근성 분석</h1>
+    <p>10개 내부 페르소나 · 30개 시나리오 · 클릭 수 / 카테고리 횡단 / Pain Point 분석</p>
+    <div class="notice">🔒 내부 전용 저장소 — 외부 협력사 · 고객사 접근 없음</div>
+  </div>
+
+  <div class="persona-grid" id="persona-grid"></div>
+
+  <div class="main-grid">
+    <div class="card">
+      <div class="card-title" id="detail-title">페르소나 프로필</div>
+      <div id="persona-detail"></div>
+    </div>
+    <div class="card">
+      <div class="card-title" id="scenario-title">시나리오 상세</div>
+      <div class="scenario-list" id="scenario-list"></div>
+    </div>
+  </div>
+
+  <div class="bottom-grid">
+    <div class="card">
+      <div class="card-title">페르소나별 복잡도 클릭 수 비교</div>
+      <div class="legend-row">
+        <span class="leg-dot"><span class="leg-sq" style="background:#70AD47"></span>단순</span>
+        <span class="leg-dot"><span class="leg-sq" style="background:#FFC000"></span>중간</span>
+        <span class="leg-dot"><span class="leg-sq" style="background:#E24B4A"></span>복잡</span>
+      </div>
+      <div class="chart-wrap" style="height:260px"><canvas id="chart-bar"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">접근 난이도 히트맵 (클릭 수 기준)</div>
+      <div id="heatmap-container" style="margin-top:6px"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const P = [
+  {
+    id:'teamlead', name:'팀장', role:'프로젝트 총괄 · 의사결정', group:'리더십',
+    icon:'👤', color:'#185FA5', bg:'#E6F1FB', tc:'#B5D4F4', tt:'#0C447C',
+    desc:'전 프로그램 개발 현황·일정을 파악하고 팀 내 보고 자료를 취합합니다. 기술 세부보다 현황 요약, 이슈 트래킹, 일정 달성률이 주 관심사입니다.',
+    goals:['전 프로그램 버그·유지보수 현황 모니터링','개발 일정 및 달성률 파악','팀 소개·성과 자료 최신화','신규 기획 방향성 검토'],
+    ac:[4,8,18], cats:[3,5,8],
+    pains:['요약 뷰 없이 폴더 10개 직접 순회','최신 버전 파일이 _version으로 숨겨져 식별 어려움','같은 정보가 [팀업무]·개별 프로그램 폴더에 중복'],
+    scenarios:[
+      {lv:'단순', t:'팀 소개 자료(한글·영문·스크립트) 확인', path:'[팀업무] › A.팀 소개 › 2)팀 소개 자료 (3종)', c:4, cat:3, time:'~1분', pain:'없음'},
+      {lv:'중간', t:'천지인 + GIS Mapper 버그 현황 한눈에 비교', path:'[팀업무] › C.기능요청 및 Bug관리 › 1)천지인 + 2)GIS Mapper', c:6, cat:4, time:'~4분', pain:'[팀업무] 내 2섹션 이동'},
+      {lv:'복잡', t:'팀 전체 개발 현황 종합 (일정+버그+회의록+소개)', path:'[팀업무] B.업무진행(1~4) + C.기능요청 Bug관리(1~4) + 각 프로그램 회의록', c:20, cat:9, time:'~35분', pain:'9개 카테고리 순회, 최신 파일 식별 어려움'},
+    ]
+  },
+  {
+    id:'newbie', name:'신입사원', role:'온보딩 중 (3개월 이내)', group:'구성원',
+    icon:'🌱', color:'#3B6D11', bg:'#EAF3DE', tc:'#C0DD97', tt:'#27500A',
+    desc:'팀 합류 후 제품군 전체를 처음 파악해야 합니다. 폴더 구조 자체가 낯설고, 어떤 문서가 최신인지, 어디서 찾아야 하는지 모르는 상태입니다.',
+    goals:['팀 소개 및 프로그램 목록 파악','각 프로그램 목적·개요 문서 열람','SW 사용법 매뉴얼 습득','회의록으로 프로젝트 맥락 파악'],
+    ac:[5,10,19], cats:[3,6,9],
+    pains:['폴더 구조 자체가 생소 — 어디서 시작해야 할지 불명확','_attachment 파일 존재를 인지 못해 정보 누락','HWP 파일 열람 불가 (뷰어 미설치 시)','최신 버전 vs 구버전 구분 불가'],
+    scenarios:[
+      {lv:'단순', t:'팀 구성원 명단 + 개발 프로그램 목록 파악', path:'[팀업무] › A.팀 소개 › 1)팀구성 및 프로그램 (2종)', c:5, cat:3, time:'~2분', pain:'첫 접근 시 폴더 구조 파악에 추가 시간 소요'},
+      {lv:'중간', t:'천지인 프로그램 목적·개요·결과물 전체 파악', path:'1.천지인 › A.공통 › 1.프로젝트 개요 (1-1~1-4) + _attachment 4종', c:10, cat:5, time:'~12분', pain:'_attachment 파일 발견 어려움, HWP·pptx 혼재'},
+      {lv:'복잡', t:'5개 프로그램 온보딩 (천지인·GIS Mapper·가이아·용지도·Domainer)', path:'1.천지인~5.Domainer 각 A.프로그램 소개 순차 탐색', c:19, cat:9, time:'~40분', pain:'5개 폴더 순회, 형식·버전 혼재, 길잡이 문서 없음'},
+    ]
+  },
+  {
+    id:'senior_dev', name:'시니어 개발자', role:'알고리즘 · 아키텍처 설계', group:'개발',
+    icon:'⚙️', color:'#185FA5', bg:'#E6F1FB', tc:'#B5D4F4', tt:'#0C447C',
+    desc:'핵심 알고리즘 구현과 시스템 아키텍처를 담당합니다. 기술 문서 깊이 탐색하고, 의사결정 맥락을 추적하기 위해 첨부파일·히스토리 문서까지 확인합니다.',
+    goals:['삼각망·등고선 알고리즘 문서 심층 탐색','DB 자료구조 및 공유 Data 현황 파악','공용 라이브러리 함수 레퍼런스 확인','이전 설계 의사결정 맥락 추적'],
+    ac:[4,8,17], cats:[3,5,8],
+    pains:['알고리즘 히스토리가 _attachment에 숨겨짐','6-65계열 동일 번호 파일 6종+첨부가 한 디렉토리에 혼재','공용 Lib이 30·31 두 폴더로 분산'],
+    scenarios:[
+      {lv:'단순', t:'불량삼각형 수정 알고리즘 + 히스토리 확인', path:'1.천지인 › C.구현 및 검증 › 8)알고리즘 › 10-11.docx + _attachment', c:4, cat:3, time:'~1분', pain:'히스토리 문서는 _attachment에 위치'},
+      {lv:'중간', t:'등고선 능선·계곡선 추정 문서 6종 + 첨부 수집', path:'1.천지인 › C.구현 및 검증 › 5)현장조사(지형,지반) 6-65계열 전체', c:8, cat:5, time:'~8분', pain:'동일 접두 파일 6종 + 첨부 2종 추가 탐색'},
+      {lv:'복잡', t:'WPF 전체 아키텍처 리뷰 (SW사용법+DB+알고리즘)', path:'1.천지인 A.공통(3.SW사용법 8종) + C.구현(1)공통 + 8)알고리즘)', c:17, cat:8, time:'~25분', pain:'A·C 두 섹션 횡단, 파일 20종+ 포함 첨부'},
+    ]
+  },
+  {
+    id:'junior_dev', name:'주니어 개발자', role:'기능 구현 · 버그 수정', group:'개발',
+    icon:'💻', color:'#534AB7', bg:'#EEEDFE', tc:'#CECBF6', tt:'#26215C',
+    desc:'담당 기능 구현과 버그 수정을 합니다. 선임이 설계한 구조 문서를 참고하며, 사용법 문서와 버그 리포트를 가장 자주 탐색합니다. 탐색보다 구현에 시간을 써야 합니다.',
+    goals:['담당 기능의 SW 사용법 문서 확인','버그 리포트 docx + 첨부 데이터 확인','DB 자료구조 빠른 참조','개발 진행 일정 확인'],
+    ac:[4,7,14], cats:[3,4,6],
+    pains:['버그 첨부파일(DWG·GIB)이 상위 docx 종속 구조','사용법 문서가 WinForm·WPF 버전 혼재','어떤 문서를 참고해야 하는지 가이드 없음'],
+    scenarios:[
+      {lv:'단순', t:'담당 기능 WPF 사용법 문서 빠른 열람', path:'1.천지인 › A.공통 › 3.SW 사용법 › 2-3x GI2022 WPF 시리즈', c:4, cat:3, time:'~1분', pain:'WinForm·WPF 혼재로 올바른 버전 식별 필요'},
+      {lv:'중간', t:'B24 버그 재현 절차 문서 + 첨부 DWG·GIB 수집', path:'[팀업무] › C.기능요청 및 Bug관리 › 1)천지인 › B24.docx + _attachment 2종', c:7, cat:4, time:'~5분', pain:'_attachment 2종 개별 다운로드, DWG 전용 뷰어 필요'},
+      {lv:'복잡', t:'GIS Mapper 지도제작 기능 전체 구현 문서 수집', path:'2.GIS Mapper › C.개발문서 › 5)지도제작(TIN,OBJ) 6종 + 1)공통 DB구조', c:14, cat:6, time:'~18분', pain:'2개 하위섹션 횡단, docx·xlsx·dwg 혼재'},
+    ]
+  },
+  {
+    id:'designer', name:'UI 디자이너', role:'화면 설계 · 스타일 가이드', group:'디자인',
+    icon:'🎨', color:'#993556', bg:'#FBEAF0', tc:'#F4C0D1', tt:'#4B1528',
+    desc:'각 프로그램의 화면 설계와 스타일 가이드를 담당합니다. pptx·hwp 기획서, 피그마 주소, 색상 템플릿, UI 컨셉 회의록을 주로 탐색합니다.',
+    goals:['프로그램별 UI 기획서 및 화면정의서 열람','피그마 주소·와이어프레임 자료 확인','스타일 가이드 및 색상 템플릿 수집','UI 컨셉 회의록으로 맥락 파악'],
+    ac:[4,8,15], cats:[3,5,7],
+    pains:['UI 기획서가 pptx·hwp·png 등 형식 혼재','피그마 주소가 .txt 파일 1개에만 존재','색상 템플릿이 개별 프로그램 폴더에 분산'],
+    scenarios:[
+      {lv:'단순', t:'GIS Mapper 피그마 주소 + 기획 개요 확인', path:'2.GIS Mapper › B.기획 › 1)문서 & UI › 00.피그마 주소.txt + 03.기획.hwp', c:4, cat:3, time:'~1분', pain:'없음'},
+      {lv:'중간', t:'GAIA UI 기획서 전체 수집 (구 기획 + 신규)', path:'3.가이아 › B.기획 › 1)문서&UI(구) 5종 + 2)기획문서&UI 2종', c:9, cat:5, time:'~10분', pain:'pptx·hwp·jpg 형식 혼재, 구/신 폴더 분리'},
+      {lv:'복잡', t:'전 제품 UI 스타일 통합 가이드 자료 수집', path:'1.천지인 C.12)기타(WPF Style) + 4.용지도 B.4)색상템플릿 + 2.GIS Mapper B.기획 UI', c:15, cat:7, time:'~22분', pain:'3개 최상위 폴더 횡단, 색상 템플릿 파편화'},
+    ]
+  },
+  {
+    id:'gis_eng', name:'GIS 엔지니어', role:'수치지형도 · 측량 성과', group:'엔지니어링',
+    icon:'🗺️', color:'#0F6E56', bg:'#E1F5EE', tc:'#9FE1CB', tt:'#085041',
+    desc:'GIS Mapper로 수치지형도를 제작하고 측량 성과물을 납품합니다. 정위치 편집 절차, 번들 분류, CAD 도면 양식, Bare Earth 제작 방법을 주로 탐색합니다.',
+    goals:['수치지형도 작성 절차서·야장 파악','번들 분류 및 SHP 속성 확인','Bare Earth 제작 방법 습득','CAD 도면 양식 및 샘플 수집'],
+    ac:[4,8,15], cats:[3,4,7],
+    pains:['절차서가 HWP + _version + _attachment 혼재','CAD 양식 샘플이 _attachment 안에 위치','번들 분류 xlsx의 첨부 DWG 파일 접근 불편'],
+    scenarios:[
+      {lv:'단순', t:'GIS Mapper 명령어 정리 xlsx 확인', path:'2.GIS Mapper › B.기획 › 1)문서 & UI › 07.GISMapper 명령어.xlsx', c:4, cat:3, time:'~1분', pain:'없음'},
+      {lv:'중간', t:'수치지형도 작성 절차서 + 번들 분류 전체 파악', path:'2.GIS Mapper › B.기획 › 1)문서&UI › 06.정위치+08.번들분류+첨부 DWG', c:8, cat:4, time:'~7분', pain:'HWP + _version + _attachment 혼재로 최신본 불명확'},
+      {lv:'복잡', t:'측량 성과 품질검토 전체 (사용법+기획+버그)', path:'2.GIS Mapper A.사용법(2-11~2-16) + B.기획(05,06,08) + [팀업무] C.버그관리 2)', c:15, cat:7, time:'~22분', pain:'3개 폴더 횡단, DWG·SVB·HWP 첨부 다수'},
+    ]
+  },
+  {
+    id:'geo_eng', name:'지반 엔지니어', role:'보링 · 지층 · 현장조사', group:'엔지니어링',
+    icon:'🔬', color:'#854F0B', bg:'#FAEEDA', tc:'#FAC775', tt:'#633806',
+    desc:'GAIA 프로그램으로 보링 데이터 입력, 지층 모델링, 주상도 편집을 담당합니다. 현장 엑셀 양식, 주상도 도움말, 천지인-GAIA 연동 절차를 자주 탐색합니다.',
+    goals:['GAIA 도움말 및 주상도 양식 파악','엑셀 업로드 샘플 데이터 수집','천지인-GAIA 연동 방법 확인','지층 3D 자료형(TRIE) 문서 탐색'],
+    ac:[4,8,14], cats:[3,4,6],
+    pains:['엑셀 샘플 데이터 12종이 _attachment로 분산','주상도 양식 문서 6종이 개별 파일로 나뉨','건기원 업로드 메뉴얼이 HWP 형식'],
+    scenarios:[
+      {lv:'단순', t:'GAIA 도움말 PDF 열람', path:'3.가이아 › A.프로그램 소개 › 1)목적 및 사용법 › 2-1 가이아 도움말.pdf', c:4, cat:3, time:'~1분', pain:'없음'},
+      {lv:'중간', t:'엑셀 업로드 샘플 데이터 12종 전체 수집', path:'3.가이아 › C.개발문서 › 10)건기원 › 엑셀업로드 샘플데이터.txt + _attachment 12종', c:8, cat:4, time:'~8분', pain:'_attachment 12종 개별 다운로드 필요'},
+      {lv:'복잡', t:'주상도 양식 + 천지인 연동 + 지층 모델링 전체', path:'3.가이아 C.개발문서 1)주상도양식(6종)+11)천지인연동 + 1.천지인 C.5)지형,지반', c:14, cat:6, time:'~18분', pain:'2개 최상위 폴더 횡단, HWP+PDF 혼재'},
+    ]
+  },
+  {
+    id:'planner', name:'제품 기획자', role:'로드맵 · 기능 정의서', group:'기획',
+    icon:'📋', color:'#993C1D', bg:'#FAECE7', tc:'#F5C4B3', tt:'#4A1B0C',
+    desc:'개발 로드맵 관리와 기능정의서 작성을 담당합니다. 개발 단계 현황 파악, 회의록 맥락 확인, 타 프로그램과의 기능 중복 검토가 주 업무입니다.',
+    goals:['GIS Mapper 차수별 개발 계획 파악','기능정의서 버전 히스토리 추적','AI 활용 기획 방향 검토','회의록으로 의사결정 맥락 파악'],
+    ac:[4,7,17], cats:[3,4,8],
+    pains:['_version 기능정의서가 원본 하위에 숨겨져 최신본 불명확','HWP 기획서 웹 호환성 문제','회의록이 연도별 폴더로 분산 — 흐름 추적 어려움'],
+    scenarios:[
+      {lv:'단순', t:'GIS Mapper 피그마 + 기획 개요 + 명령어 정리 확인', path:'2.GIS Mapper › B.기획 › 1)문서 & UI › 00.피그마 + 03.기획 + 07.명령어', c:4, cat:3, time:'~1분', pain:'없음'},
+      {lv:'중간', t:'Domainer 기능정의서 V1→V4 버전 히스토리 추적', path:'5.Domainer › B.기획 › 1)1차(~2024) + 2)2차(2025) 총 6종', c:9, cat:5, time:'~10분', pain:'_version 파일이 원본 하위에 비가시적'},
+      {lv:'복잡', t:'전 프로그램 개발 로드맵 종합 (일정+회의록+AI기획)', path:'[팀업무] B.업무진행(1~4) + 2.GIS Mapper B.기획 2)AI활용 + 각 프로그램 회의록', c:17, cat:8, time:'~30분', pain:'8개 폴더 순회, HWP+DOCX+XLSX 혼재'},
+    ]
+  },
+  {
+    id:'qa', name:'QA 테스터', role:'버그 리포트 · 테스트 검증', group:'품질',
+    icon:'🔍', color:'#3C3489', bg:'#EEEDFE', tc:'#AFA9EC', tt:'#26215C',
+    desc:'프로그램별 버그 현황을 추적하고 테스트 시나리오를 검증합니다. 버그 xlsx 전체 현황부터 개별 버그 docx, 대용량 첨부 파일까지 접근이 필요합니다.',
+    goals:['전체 버그 현황 xlsx 열람','개별 버그 재현 절차 문서 확인','첨부 DWG·GIB 데이터 수집','테스트 버전별 결과 비교 분석'],
+    ac:[4,7,13], cats:[3,4,6],
+    pains:['버그 첨부 파일(DWG·GIB)이 상위 docx에 종속','GIB 파일 120MB+ 대용량, 전용 소프트웨어 필요','용지도 테스트 xlsx 5개 버전 직접 비교 어려움'],
+    scenarios:[
+      {lv:'단순', t:'천지인 전체 버그 현황 xlsx 열람', path:'[팀업무] › C.기능요청 및 Bug관리 › 1)천지인 › 1-1 Bug 및 개선사항.xlsx', c:4, cat:3, time:'~1분', pain:'없음'},
+      {lv:'중간', t:'B47 등고선 교차 버그 재현 문서 + GIB 파일 수집', path:'[팀업무] › C.기능요청 및 Bug관리 › 1)천지인 › B47.docx + _attachment GIB (120MB)', c:7, cat:4, time:'~5분', pain:'GIB 120MB+ 첨부, 별도 뷰어 프로그램 필요'},
+      {lv:'복잡', t:'용지도 테스트 5개 버전 이력 + GIS Mapper 버그 합산 검토', path:'[팀업무] C.기능요청 Bug관리 4)용지도(5종) + 2)GIS Mapper 버그 xlsx+docx', c:13, cat:6, time:'~15분', pain:'5개 버전 파일 직접 비교 불가, 2섹션 횡단'},
+    ]
+  },
+  {
+    id:'server_admin', name:'서버 관리자', role:'인프라 · DB · 배포', group:'인프라',
+    icon:'🖥️', color:'#5F5E5A', bg:'#F1EFE8', tc:'#D3D1C7', tt:'#2C2C2A',
+    desc:'HmMap Service 서버의 PostgreSQL, Ubuntu, Hyper-V 인프라를 관리합니다. 버전별 업그레이드 절차, 포트 포워딩, SSH 설정, DR 계획 등이 주 탐색 대상입니다.',
+    goals:['PostgreSQL 버전별 업그레이드 절차 파악','서버 초기 설정 및 SSH 접속 설정 확인','포트 포워딩·도메인 할당 정보 열람','DR 계획 및 임시파일 자동삭제 설정 확인'],
+    ac:[4,7,12], cats:[3,4,5],
+    pains:['서버 문서가 1)서버정보 하위 20종에 분산','PG 15→16→17→18 업그레이드 이력이 각각 별도 파일','PostgreSQL 18 문서는 PDF, 나머지는 docx — 형식 혼재'],
+    scenarios:[
+      {lv:'단순', t:'서버 관리 주소 + 포트 포워딩 규칙 xlsx 확인', path:'21.HmMap Service › D.개발문서(2차) › 1)서버정보 › 1-1 관리주소 + 1-14 포트포워딩', c:5, cat:3, time:'~2분', pain:'없음'},
+      {lv:'중간', t:'PostgreSQL 15→16→17 업그레이드 절차 순차 추적', path:'21.HmMap Service › D.개발문서(2차) › 1)서버정보 › 1-9, 1-10, 1-18 (3종)', c:7, cat:4, time:'~6분', pain:'3개 분리 파일 — 연속 절차임에도 각각 탐색'},
+      {lv:'복잡', t:'신규 서버 전체 환경 구성 (Ubuntu+PG+Hyper-V+SSH+포트)', path:'21.HmMap Service › D.개발문서(2차) › 1)서버정보 1-3~1-8 + 1-14~1-16 (8종)', c:12, cat:5, time:'~15분', pain:'단일 섹션 내 12종 순차 탐색, docx+pdf 혼재'},
+    ]
+  }
+];
+
+let activeId = 'teamlead';
+let barChart = null;
+
+function renderGrid() {
+  document.getElementById('persona-grid').innerHTML = P.map(p => `
+    <div class="pcard ${p.id === activeId ? 'active' : ''}" onclick="sel('${p.id}')"
+      style="${p.id === activeId ? `border-color:${p.color}` : ''}">
+      <div class="pcard-icon" style="background:${p.bg}">${p.icon}</div>
+      <div class="pcard-group">${p.group}</div>
+      <div class="pcard-name">${p.name}</div>
+      <span class="pcard-tag" style="background:${p.tc};color:${p.tt}">${p.role}</span>
+    </div>`).join('');
+}
+
+function renderDetail(p) {
+  document.getElementById('detail-title').textContent = `${p.icon} ${p.name} — 프로필`;
+  document.getElementById('persona-detail').innerHTML = `
+    <div class="pd-header">
+      <div class="pd-avatar" style="background:${p.bg}">${p.icon}</div>
+      <div><div class="pd-name">${p.name}</div><div class="pd-role">${p.role} · ${p.group}</div></div>
+    </div>
+    <div class="pd-desc">${p.desc}</div>
+    <div class="pd-goals">${p.goals.map(g => `<div class="pd-goal">${g}</div>`).join('')}</div>
+    <div class="pd-stats">
+      <div class="pd-stat"><div class="sv" style="color:${p.color}">${p.ac[0]}</div><div class="sl">단순 클릭</div></div>
+      <div class="pd-stat"><div class="sv" style="color:${p.color}">${p.ac[1]}</div><div class="sl">중간 클릭</div></div>
+      <div class="pd-stat"><div class="sv" style="color:${p.color}">${p.ac[2]}</div><div class="sl">복잡 클릭</div></div>
+    </div>
+    <div class="pain-title">주요 Pain Points</div>
+    ${p.pains.map(pt => `<div class="pain-item">${pt}</div>`).join('')}`;
+}
+
+function renderScenarios(p) {
+  const bc = { 단순: 'b-s', 중간: 'b-m', 복잡: 'b-c' };
+  const pb = { 단순: '#EAF3DE', 중간: '#FAEEDA', 복잡: '#FCEBEB' };
+  const pc = { 단순: '#3B6D11', 중간: '#854F0B', 복잡: '#A32D2D' };
+  document.getElementById('scenario-title').textContent = `${p.icon} ${p.name} 시나리오 상세`;
+  document.getElementById('scenario-list').innerHTML = p.scenarios.map(s => `
+    <div class="srow">
+      <div class="srow-top">
+        <span class="badge ${bc[s.lv]}">${s.lv}</span>
+        <span class="srow-title">${s.t}</span>
+        <div class="srow-meta">
+          <span class="srow-stat"><strong>${s.c}</strong> 클릭</span>
+          <span class="srow-stat"><strong>${s.cat}</strong> 카테고리</span>
+          <span class="srow-stat">${s.time}</span>
+        </div>
+      </div>
+      <div class="srow-path">${s.path}</div>
+      ${s.pain !== '없음' ? `<span class="srow-pain" style="background:${pb[s.lv]};color:${pc[s.lv]}">⚠ ${s.pain}</span>` : ''}
+    </div>`).join('');
+}
+
+function renderBar() {
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('chart-bar'), {
+    type: 'bar',
+    data: {
+      labels: P.map(p => p.name),
+      datasets: [
+        { label: '단순', data: P.map(p => p.ac[0]), backgroundColor: '#70AD47', borderRadius: 2 },
+        { label: '중간', data: P.map(p => p.ac[1]), backgroundColor: '#FFC000', borderRadius: 2 },
+        { label: '복잡', data: P.map(p => p.ac[2]), backgroundColor: '#E24B4A', borderRadius: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#73726c', font: { size: 10 }, autoSkip: false, maxRotation: 40 }, grid: { color: 'rgba(0,0,0,0.06)' } },
+        y: { ticks: { color: '#73726c', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderHeatmap() {
+  const levels = ['단순', '중간', '복잡'];
+  const allMax = Math.max(...P.map(p => Math.max(...p.ac)));
+  const cols = {
+    단순: ['#C7E6B0', '#A5D07E', '#70AD47'],
+    중간: ['#FAD89A', '#F7C25E', '#EF9F27'],
+    복잡: ['#F5AFAF', '#EE7070', '#E24B4A']
+  };
+  let html = `<div style="display:grid;gap:3px">
+    <div style="display:flex;gap:3px;margin-bottom:2px">
+      <div style="width:48px"></div>
+      ${P.map(p => `<div style="flex:1;font-size:9px;color:#73726c;text-align:center;line-height:1.2">${p.name}</div>`).join('')}
+    </div>`;
+  levels.forEach((lv, li) => {
+    html += `<div style="display:flex;align-items:center;gap:3px">
+      <div style="width:48px;text-align:right;font-size:10px;color:#73726c;padding-right:5px">${lv}</div>
+      ${P.map(p => {
+        const v = p.ac[li];
+        const idx = Math.min(Math.round((v / allMax) * 2), 2);
+        return `<div style="flex:1;height:24px;border-radius:3px;background:${cols[lv][idx]};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#2c2c2a">${v}</div>`;
+      }).join('')}
+    </div>`;
+  });
+  html += `</div>`;
+  document.getElementById('heatmap-container').innerHTML = html;
+}
+
+function sel(id) {
+  activeId = id;
+  const p = P.find(x => x.id === id);
+  renderGrid();
+  renderDetail(p);
+  renderScenarios(p);
+}
+
+renderGrid();
+sel('teamlead');
+window.addEventListener('load', () => { renderBar(); renderHeatmap(); });
+setTimeout(() => { renderBar(); renderHeatmap(); }, 200);
+</script>
+</body>
+</html>
